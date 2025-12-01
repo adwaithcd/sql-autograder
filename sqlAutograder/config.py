@@ -1,0 +1,85 @@
+"""
+Configuration management for SQL Autograder.
+Handles API keys, model settings, and grading parameters.
+"""
+
+import os
+from dataclasses import dataclass, field
+
+
+@dataclass
+class GeminiConfig:
+    """Configuration for Gemini API."""
+    api_key: str
+    model_name: str = "gemini-2.5-flash"
+    temperature: float = 0.0
+    max_retries: int = 3
+    retry_delay: float = 2.0
+
+
+@dataclass
+class GradingConfig:
+    """Configuration for grading parameters."""
+    questions: list[str] = field(default_factory=lambda: ['4.1', '4.2', '4.3', '4.4', '4.5'])
+    points_per_question: int = 10
+    total_points: int = 50
+    question_columns: dict[str, dict[str, str]] = field(default_factory=dict)
+
+
+def get_gemini_config() -> GeminiConfig:
+    """
+    Get Gemini API configuration from environment variables.
+    
+    Returns:
+        GeminiConfig: Configuration object with API settings
+        
+    Raises:
+        ValueError: If GEMINI_API_KEY environment variable is not set
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable not set. "
+            "Please set it using: export GEMINI_API_KEY='your-api-key'"
+        )
+    
+    return GeminiConfig(api_key=api_key)
+
+
+def get_grading_config() -> GradingConfig:
+    """
+    Get grading configuration.
+    
+    Returns:
+        GradingConfig: Configuration object with grading parameters
+    
+    NOTE: The column names below must match your CSV file exactly.
+    If your CSV has different column names, update them here.
+    
+    Expected CSV columns:
+    - 'Student ID'
+    - 'Name'
+    - 'Question 4.1 Response' (SQL query)
+    - 'Question 4.1 Score' (human grader score)
+    - 'Question 4.2 Response' (SQL query)
+    - 'Question 4.2 Score' (human grader score)
+    ... and so on for questions 4.3, 4.4, 4.5
+    """
+    questions = ['4.1', '4.2', '4.3', '4.4', '4.5']
+    
+    # IMPORTANT: Update these column names if your CSV uses different names
+    question_columns = {
+        '4.1': {'response': 'Question 4.1 Response', 'score': 'Question 4.1 Score'},
+        '4.2': {'response': 'Question 4.2 Response', 'score': 'Question 4.2 Score'},
+        '4.3': {'response': 'Question 4.3 Response', 'score': 'Question 4.3 Score'},
+        '4.4': {'response': 'Question 4.4 Response', 'score': 'Question 4.4 Score'},
+        '4.5': {'response': 'Question 4.5 Response', 'score': 'Question 4.5 Score'}
+    }
+    
+    return GradingConfig(
+        questions=questions,
+        points_per_question=10,
+        total_points=50,
+        question_columns=question_columns
+    )
