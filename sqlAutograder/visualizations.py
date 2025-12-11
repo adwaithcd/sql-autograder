@@ -2,6 +2,7 @@
 Visualization module for grading analysis.
 """
 
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,6 +23,21 @@ class GradingVisualizer:
         self.csv_path = csv_path
         self.df: pd.DataFrame = None
         self.valid_df: pd.DataFrame = None
+    
+    def _extract_model_name(self) -> str:
+        """Extract model name from folder path."""
+        # Get parent folder name (e.g., output/llama3-1-8b/grading_results.csv -> llama3-1-8b)
+        parent_folder = os.path.basename(os.path.dirname(self.csv_path))
+        if parent_folder and parent_folder != "output":
+            return parent_folder.replace("-", " ").replace("_", " ").title()
+        return "LLM"
+    
+    def _get_model_suffix(self) -> str:
+        """Get model suffix for filenames."""
+        parent_folder = os.path.basename(os.path.dirname(self.csv_path))
+        if parent_folder and parent_folder != "output":
+            return parent_folder
+        return "llm"
     
     def load_data(self) -> bool:
         """
@@ -64,7 +80,7 @@ class GradingVisualizer:
         else:
             return 'G6'
     
-    def plot_overall_distribution(self, output_path: str = "output/overall_distribution.png"):
+    def plot_overall_distribution(self, output_path: str = None):
         """
         Create side-by-side histogram comparing overall LLM vs Human grade distribution.
         
@@ -73,6 +89,14 @@ class GradingVisualizer:
         """
         if not self.load_data():
             return False
+        
+        model_name = self._extract_model_name()
+        model_suffix = self._get_model_suffix()
+        
+        # Default output path with model name
+        if output_path is None:
+            output_dir = os.path.dirname(self.csv_path)
+            output_path = f"{output_dir}/overall_distribution_{model_suffix}.png"
         
         # Create side-by-side subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
@@ -113,7 +137,7 @@ class GradingVisualizer:
                                      color='#4ECDC4', edgecolor='black', alpha=0.8)
         ax2.set_xlabel('Total Score (out of 50)', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Number of Students', fontsize=12, fontweight='bold')
-        ax2.set_title('LLM Grader Distribution', fontsize=14, fontweight='bold', pad=15)
+        ax2.set_title(f'{model_name} Grader Distribution', fontsize=14, fontweight='bold', pad=15)
         ax2.grid(axis='y', alpha=0.3, linestyle='--')
         
         # Add value labels on bars
@@ -138,7 +162,7 @@ class GradingVisualizer:
         ax1.set_ylim(0, max_count * 1.15)
         ax2.set_ylim(0, max_count * 1.15)
         
-        plt.suptitle('Grade Distribution: Human vs LLM Grader', 
+        plt.suptitle(f'Grade Distribution: Human vs {model_name} Grader', 
                     fontsize=16, fontweight='bold', y=0.98)
         plt.tight_layout()
         
@@ -151,7 +175,7 @@ class GradingVisualizer:
         print(f"✓ Overall distribution saved to: {output_path}")
         return True
     
-    def plot_per_grader_distributions(self, output_dir: str = "output"):
+    def plot_per_grader_distributions(self, output_dir: str = None):
         """
         Create separate side-by-side histograms for each grader (G1-G6).
         
@@ -160,6 +184,13 @@ class GradingVisualizer:
         """
         if not self.load_data():
             return False
+        
+        model_name = self._extract_model_name()
+        model_suffix = self._get_model_suffix()
+        
+        # Default output directory
+        if output_dir is None:
+            output_dir = os.path.dirname(self.csv_path)
         
         # Assign graders
         self.valid_df['grader'] = self.valid_df.index.map(self.assign_grader)
@@ -216,7 +247,7 @@ class GradingVisualizer:
                                          color='#4ECDC4', edgecolor='black', alpha=0.8)
             ax2.set_xlabel('Total Score (out of 50)', fontsize=12, fontweight='bold')
             ax2.set_ylabel('Number of Students', fontsize=12, fontweight='bold')
-            ax2.set_title('LLM Grader Distribution', fontsize=14, fontweight='bold', pad=15)
+            ax2.set_title(f'{model_name} Grader Distribution', fontsize=14, fontweight='bold', pad=15)
             ax2.grid(axis='y', alpha=0.3, linestyle='--')
             
             # Add value labels on bars
@@ -241,11 +272,11 @@ class GradingVisualizer:
             ax1.set_ylim(0, max_count * 1.15)
             ax2.set_ylim(0, max_count * 1.15)
             
-            plt.suptitle(f'{grader} Grade Distribution: Human vs LLM (Students {student_range})', 
+            plt.suptitle(f'{grader} Grade Distribution: Human vs {model_name} (Students {student_range})', 
                         fontsize=16, fontweight='bold', y=0.98)
             plt.tight_layout()
             
-            output_file = output_path / f"{grader}_distribution.png"
+            output_file = output_path / f"{grader}_distribution_{model_suffix}.png"
             plt.savefig(output_file, dpi=300, bbox_inches='tight')
             plt.close()
             
@@ -253,7 +284,7 @@ class GradingVisualizer:
         
         return True
     
-    def plot_all_graders_grid(self, output_path: str = "output/all_graders_grid.png"):
+    def plot_all_graders_grid(self, output_path: str = None):
         """
         Create a 6x2 grid showing all 6 graders (Human | LLM side by side).
         
@@ -262,6 +293,14 @@ class GradingVisualizer:
         """
         if not self.load_data():
             return False
+        
+        model_name = self._extract_model_name()
+        model_suffix = self._get_model_suffix()
+        
+        # Default output path with model name
+        if output_path is None:
+            output_dir = os.path.dirname(self.csv_path)
+            output_path = f"{output_dir}/all_graders_grid_{model_suffix}.png"
         
         # Assign graders
         self.valid_df['grader'] = self.valid_df.index.map(self.assign_grader)
@@ -282,7 +321,7 @@ class GradingVisualizer:
                 ax_human.text(0.5, 0.5, 'No Data', ha='center', va='center')
                 ax_llm.text(0.5, 0.5, 'No Data', ha='center', va='center')
                 ax_human.set_title(f'{grader} Human (Students {student_range})')
-                ax_llm.set_title(f'{grader} LLM')
+                ax_llm.set_title(f'{grader} {model_name}')
                 continue
             
             # Get scores
@@ -309,7 +348,7 @@ class GradingVisualizer:
             ax_llm.set_ylabel('# Students', fontsize=10)
             if idx == 5:  # Only bottom row
                 ax_llm.set_xlabel('Score', fontsize=10)
-            ax_llm.set_title(f'{grader} LLM\n'
+            ax_llm.set_title(f'{grader} {model_name}\n'
                             f'N={len(llm_scores)}, μ={llm_scores.mean():.1f}, σ={llm_scores.std():.1f}, '
                             f'Diff={llm_scores.mean() - human_scores.mean():+.1f}',
                             fontsize=11, fontweight='bold')
@@ -320,7 +359,7 @@ class GradingVisualizer:
             ax_human.set_ylim(0, max_count * 1.15)
             ax_llm.set_ylim(0, max_count * 1.15)
         
-        plt.suptitle('Grade Distribution by Grader: Human vs LLM', 
+        plt.suptitle(f'Grade Distribution by Grader: Human vs {model_name}', 
                     fontsize=18, fontweight='bold', y=0.995)
         plt.tight_layout()
         

@@ -1,25 +1,28 @@
 # SQL Autograder
 
-An LLM-based SQL grading system using Google Gemini API to automatically grade student SQL submissions and compare with human grader scores.
+An LLM-based SQL grading system that automatically grades student SQL submissions and compares with human grader scores. Supports both Google Gemini API and local Ollama models.
 
 ## Features
 
-- **Automated Grading**: Uses Google Gemini API to grade SQL submissions based on detailed rubrics
+- **Automated Grading**: Uses Google Gemini API or local Ollama models to grade SQL submissions based on detailed rubrics
+- **Multiple Model Support**: Gemini (API) and Ollama models (Llama, DeepSeek-R1, Mistral, etc.)
 - **Comprehensive Analysis**: Compares LLM grading with human grader scores
 - **Detailed Feedback**: Provides specific feedback and identifies submissions needing manual review
 - **Per-Grader Statistics**: Analyzes grading patterns for each human grader (G1-G6)
 - **Visualizations**: Generates distribution plots comparing LLM and human grading
 - **Modular Design**: Clean, maintainable code structure with separate modules
 - **Easy Configuration**: Simple setup via environment variables
+- **Organized Output**: Results organized by model in separate folders
 
 ## Project Structure
 ```
 .
-├── sql_autograder/          # Main package
+├── sqlAutograder/           # Main package
 │   ├── __init__.py         # Package initialization
 │   ├── config.py           # Configuration management
 │   ├── prompts.py          # Grading prompts and rubrics
 │   ├── grader.py           # LLM grading logic (Gemini API)
+│   ├── ollama_grader.py    # LLM grading logic (Ollama local models)
 │   ├── data_loader.py      # CSV data loading and validation
 │   ├── results.py          # Results processing and storage
 │   ├── statistics.py       # Statistics generation
@@ -35,7 +38,8 @@ An LLM-based SQL grading system using Google Gemini API to automatically grade s
 ### Prerequisites
 
 - Python 3.8 or higher
-- Google Gemini API key ([get one here](https://aistudio.google.com/api-keys))
+- Google Gemini API key ([get one here](https://aistudio.google.com/api-keys)) for Gemini model
+- Ollama ([install here](https://ollama.com)) for local models
 
 ### Setup
 
@@ -44,7 +48,7 @@ An LLM-based SQL grading system using Google Gemini API to automatically grade s
 pip install -r requirements.txt
 ```
 
-2. Set up your Gemini API key:
+2. Set up your Gemini API key (if using Gemini):
 
 **Linux/Mac:**
 ```bash
@@ -61,33 +65,73 @@ set GEMINI_API_KEY=your-api-key-here
 $env:GEMINI_API_KEY='your-api-key-here'
 ```
 
+### Ollama Setup (for local models)
+
+1. Install Ollama:
+```bash
+brew install ollama
+```
+
+2. Start the Ollama server:
+```bash
+ollama serve
+```
+
+3. Pull a model:
+```bash
+# Recommended
+ollama pull llama3.1:8b
+
+# Other options
+ollama pull llama3.2:3b      # Faster, smaller
+ollama pull deepseek-r1      # Reasoning model
+ollama pull mistral          
+ollama pull qwen2.5:7b       
+```
+
 ## Usage
 
 ### Complete Workflow
 ```bash
-# 1. Set API key (once per terminal session)
+# 1. Set API key (once per terminal session) - only needed for Gemini
 export GEMINI_API_KEY='your-api-key-here'
 
-# 2. Grade submissions (creates output/grading_results.csv)
+# 2. Grade submissions with Gemini (default)
 python main.py grade exam1-submission.csv
 
-# 3. Generate overall statistics (creates output/statistics_report.txt)
-python main.py stats output/grading_results.csv
+# 2. Or grade with a local Ollama model
+python main.py grade exam1-submission.csv --model llama3.1:8b
 
-# 4. Generate per-grader statistics (creates output/per_grader_statistics.txt)
-python main.py grader-stats output/grading_results.csv
+# 3. Generate overall statistics
+python main.py stats output/gemini/grading_results.csv
 
-# 5. Generate visualizations (creates PNG files in output/)
-python main.py visualize output/grading_results.csv
+# 4. Generate per-grader statistics
+python main.py grader-stats output/gemini/grading_results.csv
+
+# 5. Generate visualizations
+python main.py visualize output/gemini/grading_results.csv
 ```
 
 ### 1. Grading Student Submissions
 
-**Basic usage (with default output):**
+**With Gemini (default):**
 ```bash
 python main.py grade exam1-submission.csv
 ```
-Creates: `output/grading_results.csv`
+Creates: `output/gemini/grading_results.csv`
+
+**With Ollama models:**
+```bash
+# Llama 3.1 8B (recommended for local)
+python main.py grade exam1-submission.csv --model llama3.1:8b
+
+# Llama 3.2 3B (faster, less accurate)
+python main.py grade exam1-submission.csv --model llama3.2:3b
+
+# DeepSeek-R1 (reasoning model, slower)
+python main.py grade exam1-submission.csv --model deepseek-r1
+```
+Creates: `output/llama3-1-8b/grading_results.csv` (folder named after model)
 
 **With options:**
 ```bash
@@ -101,20 +145,20 @@ python main.py grade exam1-submission.csv --max-students 50
 python main.py grade exam1-submission.csv --rate-limit 2.0
 
 # Combine options
-python main.py grade exam1-submission.csv --max-students 100 --rate-limit 1.5
+python main.py grade exam1-submission.csv --model llama3.1:8b --max-students 100 --rate-limit 1.5
 ```
 
 ### 2. Generating Overall Statistics
 
 **Basic usage:**
 ```bash
-python main.py stats output/grading_results.csv
+python main.py stats output/gemini/grading_results.csv
 ```
-Creates: `output/statistics_report.txt`
+Creates: `output/gemini/statistics_report_gemini.txt`
 
 **With custom output:**
 ```bash
-python main.py stats output/grading_results.csv --output my_stats.txt
+python main.py stats output/gemini/grading_results.csv --output my_stats.txt
 ```
 
 **Output includes:**
@@ -127,13 +171,13 @@ python main.py stats output/grading_results.csv --output my_stats.txt
 
 **Basic usage:**
 ```bash
-python main.py grader-stats output/grading_results.csv
+python main.py grader-stats output/gemini/grading_results.csv
 ```
-Creates: `output/per_grader_statistics.txt`
+Creates: `output/gemini/per_grader_statistics_gemini.txt`
 
 **With custom output:**
 ```bash
-python main.py grader-stats output/grading_results.csv --output grader_analysis.txt
+python main.py grader-stats output/gemini/grading_results.csv --output grader_analysis.txt
 ```
 
 **Grader assignments:**
@@ -154,24 +198,43 @@ python main.py grader-stats output/grading_results.csv --output grader_analysis.
 
 **Basic usage:**
 ```bash
-python main.py visualize output/grading_results.csv
+python main.py visualize output/gemini/grading_results.csv
 ```
 
 **With custom output directory:**
 ```bash
-python main.py visualize output/grading_results.csv --output-dir plots/
+python main.py visualize output/gemini/grading_results.csv --output-dir plots/
 ```
 
 **Generated files:**
-- `overall_distribution.png` - Side-by-side comparison of Human vs LLM grade distribution
-- `G1_distribution.png` through `G6_distribution.png` - Individual grader comparisons
-- `all_graders_grid.png` - Grid view of all 6 graders
+- `overall_distribution_<model>.png` - Side-by-side comparison of Human vs LLM grade distribution
+- `G1_distribution_<model>.png` through `G6_distribution_<model>.png` - Individual grader comparisons
+- `all_graders_grid_<model>.png` - Grid view of all 6 graders
 
 Each visualization shows:
 - Human grader distribution on the left
 - LLM grader distribution on the right
 - Count labels on each bar
 - Statistics (N, mean, standard deviation, difference)
+
+## Output Structure
+
+Results are organized by model:
+```
+output/
+├── gemini/
+│   ├── grading_results.csv
+│   ├── statistics_report_gemini.txt
+│   ├── per_grader_statistics_gemini.txt
+│   ├── overall_distribution_gemini.png
+│   ├── G1_distribution_gemini.png
+│   ├── ...
+│   └── all_graders_grid_gemini.png
+├── llama3-1-8b/
+│   └── (same structure)
+└── deepseek-r1/
+    └── (same structure)
+```
 
 ## Input CSV Format
 
@@ -190,11 +253,11 @@ The input CSV file must contain these columns:
 - `Question 4.5 Response`: SQL query for question 4.5
 - `Question 4.5 Score`: Human grader score for question 4.5
 
-**Note**: If your CSV has different column names, update them in `sql_autograder/config.py` in the `get_grading_config()` function.
+**Note**: If your CSV has different column names, update them in `sqlAutograder/config.py` in the `get_grading_config()` function.
 
 ## Output Files
 
-### 1. Grading Results CSV (`output/grading_results.csv`)
+### 1. Grading Results CSV (`output/<model>/grading_results.csv`)
 
 Contains detailed grading information for each student:
 - Student ID and name
@@ -206,7 +269,7 @@ Contains detailed grading information for each student:
 - Flags indicating if manual review is needed
 - Total scores (out of 50 points)
 
-### 2. Statistics Report (`output/statistics_report.txt`)
+### 2. Statistics Report (`output/<model>/statistics_report_<model>.txt`)
 
 Overall statistics including:
 - Summary statistics across all students
@@ -214,7 +277,7 @@ Overall statistics including:
 - Per-question detailed analysis
 - Average scores and standard deviations
 
-### 3. Per-Grader Statistics (`output/per_grader_statistics.txt`)
+### 3. Per-Grader Statistics (`output/<model>/per_grader_statistics_<model>.txt`)
 
 Grader-specific analysis including:
 - Total scores by grader
@@ -222,17 +285,17 @@ Grader-specific analysis including:
 - Agreement rates for each grader
 - Comparison of grading patterns
 
-### 4. Visualizations (`output/*.png`)
+### 4. Visualizations (`output/<model>/*_<model>.png`)
 
-- **overall_distribution.png**: Overall comparison of all students
-- **G1-G6_distribution.png**: Individual grader comparisons
-- **all_graders_grid.png**: Grid view of all graders
+- **overall_distribution_<model>.png**: Overall comparison of all students
+- **G1-G6_distribution_<model>.png**: Individual grader comparisons
+- **all_graders_grid_<model>.png**: Grid view of all graders
 
 ## Customizing for Your Questions
 
 ### Changing Question Numbers or Column Names
 
-Edit `sql_autograder/config.py`:
+Edit `sqlAutograder/config.py`:
 ```python
 def get_grading_config() -> GradingConfig:
     # Change question numbers here
@@ -247,7 +310,7 @@ def get_grading_config() -> GradingConfig:
 
 ### Customizing Rubrics
 
-Edit `sql_autograder/prompts.py`:
+Edit `sqlAutograder/prompts.py`:
 
 1. Update the database schema in the prompt
 2. Modify question descriptions
@@ -255,6 +318,35 @@ Edit `sql_autograder/prompts.py`:
 4. Adjust deduction rules
 
 The prompt is well-structured and clearly commented for easy modification.
+
+### Configuration Settings
+
+Edit `sqlAutograder/config.py` to adjust model and grading settings:
+
+**Gemini Configuration (`GeminiConfig`):**
+```python
+model_name: str = "gemini-2.5-flash"  # Gemini model to use
+temperature: float = 0.0              # 0 = deterministic, higher = more random
+max_retries: int = 3                  # Retry attempts on API failure
+retry_delay: float = 2.0              # Seconds between retries
+```
+
+**Ollama Configuration (`OllamaConfig`):**
+```python
+model_name: str = "llama3.1:8b"       # Default Ollama model
+base_url: str = "http://localhost:11434"  # Ollama server URL
+temperature: float = 0.0              # 0 = deterministic, higher = more random
+max_tokens: int = 4096                # Max response length
+max_retries: int = 3                  # Retry attempts on failure
+retry_delay: float = 2.0              # Seconds between retries
+timeout: float = 300.0                # Request timeout (seconds)
+```
+
+**When to adjust:**
+- Increase `timeout` if grading is timing out on slower hardware
+- Increase `max_retries` if you're seeing intermittent failures
+- Adjust `temperature` if you want more varied responses (not recommended for grading)
+- Change `base_url` if running Ollama on a different machine
 
 ## Understanding the Results
 
@@ -288,11 +380,27 @@ ValueError: GEMINI_API_KEY environment variable not set
 ```
 **Solution**: Set the `GEMINI_API_KEY` environment variable with your API key.
 
+### Ollama Connection Error
+```
+Ollama server not running. Start it with: ollama serve
+```
+**Solution**: Open a terminal and run `ollama serve`, then try again.
+
+### Ollama Model Not Found
+```
+Error: model 'llama3.1:8b' not found
+```
+**Solution**: Pull the model first: `ollama pull llama3.1:8b`
+
+### JSON Parsing Errors (Ollama)
+Some smaller models (like Llama 3.2 3B) may not consistently return valid JSON.
+**Solution**: Use Llama 3.1 8B or larger models for better JSON compliance.
+
 ### Missing Columns Error
 ```
 ✗ Missing columns: Question 4.1 Response, Question 4.1 Score
 ```
-**Solution**: Either rename your CSV columns to match the expected names, or update the column mappings in `sql_autograder/config.py`.
+**Solution**: Either rename your CSV columns to match the expected names, or update the column mappings in `sqlAutograder/config.py`.
 
 ### Rate Limit Errors
 If you encounter rate limiting errors from the Gemini API:
@@ -320,9 +428,10 @@ Error loading CSV: [Errno 2] No such file or directory: 'submissions.csv'
 python main.py grade <input_csv> [options]
 
 Options:
-  --output OUTPUT          Output CSV file (default: output/grading_results.csv)
+  --output OUTPUT          Output CSV file (default: output/<model>/grading_results.csv)
   --max-students N         Grade only first N students
   --rate-limit SECONDS     Delay between API calls (default: 1.0)
+  --model MODEL            Model to use: "gemini" or Ollama model name (default: gemini)
 ```
 
 ### Stats Command
@@ -330,7 +439,7 @@ Options:
 python main.py stats <results_csv> [options]
 
 Options:
-  --output OUTPUT          Output text file (default: output/statistics_report.txt)
+  --output OUTPUT          Output text file (default: same directory as input)
 ```
 
 ### Grader-Stats Command
@@ -338,7 +447,7 @@ Options:
 python main.py grader-stats <results_csv> [options]
 
 Options:
-  --output OUTPUT          Output text file (default: output/per_grader_statistics.txt)
+  --output OUTPUT          Output text file (default: same directory as input)
 ```
 
 ### Visualize Command
@@ -346,7 +455,7 @@ Options:
 python main.py visualize <results_csv> [options]
 
 Options:
-  --output-dir DIR         Output directory (default: output/)
+  --output-dir DIR         Output directory (default: same directory as input)
 ```
 
 ## Dependencies
@@ -355,3 +464,4 @@ Options:
 - `numpy>=1.24.0` - Numerical operations
 - `google-generativeai>=0.3.0` - Gemini API
 - `matplotlib>=3.7.0` - Visualizations
+- `requests>=2.28.0` - Ollama API calls

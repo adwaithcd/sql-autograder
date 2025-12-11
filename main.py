@@ -11,7 +11,9 @@ from pathlib import Path
 from sqlAutograder import (
     get_gemini_config,
     get_grading_config,
+    get_ollama_config,
     GeminiGrader,
+    OllamaGrader,
     SubmissionLoader,
     ResultsProcessor,
     GradingStatistics,
@@ -19,28 +21,52 @@ from sqlAutograder import (
 )
 
 
+def get_grader(model: str):
+    """
+    Get the appropriate grader based on model selection.
+    
+    Args:
+        model: Model identifier ('gemini' or an Ollama model name)
+        
+    Returns:
+        Tuple of (grader instance, model display name)
+    """
+    if model == 'gemini':
+        config = get_gemini_config()
+        grader = GeminiGrader(config)
+        return grader, f"Gemini ({config.model_name})"
+    else:
+        config = get_ollama_config(model_name=model)
+        grader = OllamaGrader(config)
+        return grader, f"Ollama ({model})"
+
+
 def grade_submissions(
     input_csv: str,
     output_csv: str = None,
     max_students: int = None,
-    rate_limit_delay: float = 1.0
+    rate_limit_delay: float = 1.0,
+    model: str = 'gemini'
 ) -> bool:
     """
     Grade student submissions and save results.
     
     Args:
         input_csv: Path to input CSV with submissions
-        output_csv: Path to save grading results (default: output/grading_results.csv)
+        output_csv: Path to save grading results (default: output/<model>/grading_results.csv)
         max_students: Maximum number of students to grade (None for all)
         rate_limit_delay: Delay between API calls in seconds
+        model: Model to use ('gemini' or Ollama model name like 'deepseek-r1/llama3.1:8b')
         
     Returns:
         bool: True if successful
     """
-    # Create output directory and use default filename if not provided
+    # Create output directory organized by model name
+    model_suffix = model.replace(':', '-').replace('.', '-')
+    output_dir = Path("output") / model_suffix
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
     if output_csv is None:
-        output_dir = Path("output")
-        output_dir.mkdir(exist_ok=True)
         output_csv = str(output_dir / "grading_results.csv")
     
     print("=" * 60)
@@ -51,9 +77,12 @@ def grade_submissions(
     # Load configurations
     try:
         print("1. Loading configuration...")
-        gemini_config = get_gemini_config()
         grading_config = get_grading_config()
-        print(f"   ✓ Using model: {gemini_config.model_name}")
+        
+        # Initialize the appropriate grader based on model selection
+        grader, model_display = get_grader(model)
+        
+        print(f"   ✓ Using model: {model_display}")
         print()
     except ValueError as e:
         print(f"   ✗ Configuration error: {e}")
@@ -79,9 +108,10 @@ def grade_submissions(
     print()
     
     # Initialize grader
-    print("3. Initializing Gemini grader...")
-    grader = GeminiGrader(gemini_config)
+    print(f"3. Initializing {model_display} grader...")
     print("   ✓ Grader initialized")
+    if model != 'gemini':
+        print("   ⚠ Note: Local models may be slower than API calls")
     print()
     
     # Process submissions
@@ -94,6 +124,7 @@ def grade_submissions(
     results = []
     success_count = 0
     fail_count = 0
+    start_time = time.time()
     
     for i, submission in enumerate(submissions, 1):
         print(f"--- Student {i}/{total} ---")
@@ -106,7 +137,9 @@ def grade_submissions(
             print(f"Q{q_num} Grader Score: {score}/10")
         
         # Grade with LLM
+        student_start = time.time()
         llm_result, error = grader.grade_student_submission(submission.queries)
+        student_time = time.time() - student_start
         
         if llm_result:
             # Successful grading
@@ -129,6 +162,7 @@ def grade_submissions(
             print(f"  Total: LLM={result.total_llm_score:.1f}/50, "
                   f"Grader={result.total_grader_score}/50, "
                   f"Diff={result.total_score_difference:+.1f}")
+            print(f"  Time: {student_time:.1f}s")
             
             success_count += 1
         else:
@@ -150,6 +184,8 @@ def grade_submissions(
         if i < total:
             time.sleep(rate_limit_delay)
     
+    total_time = time.time() - start_time
+    
     # Save results
     print("=" * 60)
     print("SAVING RESULTS")
@@ -167,9 +203,11 @@ def grade_submissions(
     print("=" * 60)
     print("GRADING SUMMARY")
     print("=" * 60)
+    print(f"Model: {model_display}")
     print(f"Total students: {total}")
     print(f"Successfully graded: {success_count}")
     print(f"Failed: {fail_count}")
+    print(f"Total time: {total_time:.1f}s ({total_time/total:.1f}s per student)")
     print()
     
     return True
@@ -181,16 +219,16 @@ def generate_statistics(results_csv: str, output_txt: str = None) -> bool:
     
     Args:
         results_csv: Path to grading results CSV
-        output_txt: Path to save statistics report (default: output/statistics_report.txt)
+        output_txt: Path to save statistics report (default: same directory as input CSV)
         
     Returns:
         bool: True if successful
     """
-    # Create output directory and use default filename if not provided
+    # Use same directory as input CSV with model suffix
     if output_txt is None:
-        output_dir = Path("output")
-        output_dir.mkdir(exist_ok=True)
-        output_txt = str(output_dir / "statistics_report.txt")
+        output_dir = Path(results_csv).parent
+        model_suffix = output_dir.name
+        output_txt = str(output_dir / f"statistics_report_{model_suffix}.txt")
     
     print("=" * 60)
     print("GENERATING STATISTICS")
@@ -223,16 +261,16 @@ def generate_per_grader_statistics(results_csv: str, output_txt: str = None) -> 
     
     Args:
         results_csv: Path to grading results CSV
-        output_txt: Path to save statistics report (default: output/per_grader_statistics.txt)
+        output_txt: Path to save statistics report (default: same directory as input CSV)
         
     Returns:
         bool: True if successful
     """
-    # Create output directory and use default filename if not provided
+    # Use same directory as input CSV with model suffix
     if output_txt is None:
-        output_dir = Path("output")
-        output_dir.mkdir(exist_ok=True)
-        output_txt = str(output_dir / "per_grader_statistics.txt")
+        output_dir = Path(results_csv).parent
+        model_suffix = output_dir.name
+        output_txt = str(output_dir / f"per_grader_statistics_{model_suffix}.txt")
     
     print("=" * 60)
     print("GENERATING PER-GRADER STATISTICS")
@@ -259,17 +297,21 @@ def generate_per_grader_statistics(results_csv: str, output_txt: str = None) -> 
         print("✗ Failed to save per-grader statistics")
         return False
     
-def generate_visualizations(results_csv: str, output_dir: str = "output") -> bool:
+def generate_visualizations(results_csv: str, output_dir: str = None) -> bool:
     """
     Generate visualization plots from grading results.
     
     Args:
         results_csv: Path to grading results CSV
-        output_dir: Directory to save visualizations
+        output_dir: Directory to save visualizations (default: same directory as input CSV)
         
     Returns:
         bool: True if successful
-    """    
+    """
+    # Use same directory as input CSV if not specified
+    if output_dir is None:
+        output_dir = str(Path(results_csv).parent)
+    
     print("=" * 60)
     print("GENERATING VISUALIZATIONS")
     print("=" * 60)
@@ -278,22 +320,19 @@ def generate_visualizations(results_csv: str, output_dir: str = "output") -> boo
     visualizer = GradingVisualizer(results_csv)
     
     print("Creating overall distribution plot...")
-    visualizer.plot_overall_distribution(f"{output_dir}/overall_distribution.png")
+    visualizer.plot_overall_distribution()
     
     print("\nCreating per-grader distribution plots...")
-    visualizer.plot_per_grader_distributions(output_dir)
+    visualizer.plot_per_grader_distributions()
     
     print("\nCreating all-graders grid plot...")
-    visualizer.plot_all_graders_grid(f"{output_dir}/all_graders_grid.png")
+    visualizer.plot_all_graders_grid()
     
     print()
     print("=" * 60)
     print("VISUALIZATIONS COMPLETE")
     print("=" * 60)
-    print(f"\nCheck the '{output_dir}/' folder for:")
-    print("  - overall_distribution.png")
-    print("  - G1_distribution.png through G6_distribution.png")
-    print("  - all_graders_grid.png")
+    print(f"\nCheck the '{output_dir}/' folder for visualization files.")
     print()
     
     return True
@@ -305,23 +344,51 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Grade all submissions (creates output/grading_results.csv)
+  # Grade all submissions with Gemini (default)
   python main.py grade exam1-submission.csv
   
-  # Generate overall statistics (creates output/statistics_report.txt)
-  python main.py stats output/grading_results.csv
+  # Grade with DeepSeek-R1 (local Ollama model)
+  python main.py grade exam1-submission.csv --model deepseek-r1
   
-  # Generate per-grader statistics (creates output/per_grader_statistics.txt)
-  python main.py grader-stats output/grading_results.csv
+  # Grade with Llama 3.1 8B (local Ollama model)
+  python main.py grade exam1-submission.csv --model llama3.1:8b
   
-  # Grade with custom output name
-  python main.py grade exam1-submission.csv --output my_results.csv
+  # Generate overall statistics
+  python main.py stats output/llama3-1-8b/grading_results.csv
+  
+  # Generate per-grader statistics
+  python main.py grader-stats output/llama3-1-8b/grading_results.csv
+  
+  # Generate visualizations
+  python main.py visualize output/llama3-1-8b/grading_results.csv
   
   # Grade first 50 submissions
   python main.py grade exam1-submission.csv --max-students 50
 
+Output Structure:
+  output/
+  ├── gemini/
+  │   ├── grading_results.csv
+  │   ├── statistics_report_gemini.txt
+  │   ├── per_grader_statistics_gemini.txt
+  │   ├── overall_distribution_gemini.png
+  │   ├── G1_distribution_gemini.png
+  │   └── ...
+  ├── llama3-1-8b/
+  │   └── ...
+  └── deepseek-r1/
+      └── ...
+
 Environment Variables:
-  GEMINI_API_KEY          Your Google Gemini API key (required)
+  GEMINI_API_KEY          Your Google Gemini API key (required for Gemini model)
+
+Ollama Setup (for local models):
+  brew install ollama
+  ollama serve
+  ollama pull llama3.1:8b
+
+Available Ollama Models:
+  deepseek-r1, llama3.1:8b, llama3.2:3b
         """
     )
     
@@ -332,7 +399,7 @@ Environment Variables:
     grade_parser.add_argument('input_csv', help='Input CSV file with submissions')
     grade_parser.add_argument(
         '--output',
-        help='Output CSV file for results (default: output/grading_results.csv)'
+        help='Output CSV file for results (default: output/<model>/grading_results.csv)'
     )
     grade_parser.add_argument(
         '--max-students',
@@ -345,13 +412,18 @@ Environment Variables:
         default=1.0,
         help='Delay between API calls in seconds (default: 1.0)'
     )
+    grade_parser.add_argument(
+        '--model',
+        default='gemini',
+        help='Model to use: "gemini" or Ollama model name like "deepseek-r1" (default: gemini)'
+    )
     
     # Stats command
     stats_parser = subparsers.add_parser('stats', help='Generate overall statistics report')
     stats_parser.add_argument('results_csv', help='Input CSV file with grading results')
     stats_parser.add_argument(
         '--output',
-        help='Output text file for statistics (default: output/statistics_report.txt)'
+        help='Output text file for statistics (default: same directory as input CSV)'
     )
     
     # Per-grader stats command
@@ -359,7 +431,7 @@ Environment Variables:
     grader_stats_parser.add_argument('results_csv', help='Input CSV file with grading results')
     grader_stats_parser.add_argument(
         '--output',
-        help='Output text file for statistics (default: output/per_grader_statistics.txt)'
+        help='Output text file for statistics (default: same directory as input CSV)'
     )
     
     # Visualize command
@@ -367,8 +439,7 @@ Environment Variables:
     viz_parser.add_argument('results_csv', help='Input CSV file with grading results')
     viz_parser.add_argument(
         '--output-dir',
-        default='output',
-        help='Output directory for plots (default: output/)'
+        help='Output directory for plots (default: same directory as input CSV)'
     )
     args = parser.parse_args()
     
@@ -377,7 +448,8 @@ Environment Variables:
             args.input_csv,
             args.output,
             args.max_students,
-            args.rate_limit
+            args.rate_limit,
+            args.model
         )
         exit(0 if success else 1)
     

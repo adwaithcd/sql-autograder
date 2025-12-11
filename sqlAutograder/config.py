@@ -16,6 +16,16 @@ class GeminiConfig:
     max_retries: int = 3
     retry_delay: float = 2.0
 
+@dataclass
+class OllamaConfig:
+    """Configuration for Ollama local models."""
+    model_name: str = "llama3.1:8b"
+    base_url: str = "http://localhost:11434"
+    temperature: float = 0.0
+    max_tokens: int = 4096
+    max_retries: int = 3
+    retry_delay: float = 2.0
+    timeout: float = 300.0 
 
 @dataclass
 class GradingConfig:
@@ -46,6 +56,17 @@ def get_gemini_config() -> GeminiConfig:
     
     return GeminiConfig(api_key=api_key)
 
+def get_ollama_config(model_name: str = "llama3.1:8b") -> OllamaConfig:
+    """
+    Get Ollama configuration for local models.
+    
+    Args:
+        model_name: Name of the Ollama model to use
+        
+    Returns:
+        OllamaConfig: Configuration object with Ollama settings
+    """
+    return OllamaConfig(model_name=model_name)
 
 def get_grading_config() -> GradingConfig:
     """

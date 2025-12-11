@@ -2,6 +2,7 @@
 Statistics generation module for analyzing grading results.
 """
 
+import os
 import pandas as pd
 import numpy as np
 from typing import Dict, List
@@ -20,6 +21,14 @@ class GradingStatistics:
         self.csv_path = csv_path
         self.df: pd.DataFrame = None
         self.valid_df: pd.DataFrame = None
+    
+    def _extract_model_name(self) -> str:
+        """Extract model name from folder path."""
+        # Get parent folder name (e.g., output/llama3-1-8b/grading_results.csv -> llama3-1-8b)
+        parent_folder = os.path.basename(os.path.dirname(self.csv_path))
+        if parent_folder and parent_folder != "output":
+            return parent_folder.replace("-", " ").replace("_", " ").title()
+        return "LLM"
     
     def load_and_validate(self) -> bool:
         """
@@ -224,12 +233,13 @@ class GradingStatistics:
         if not self.load_and_validate():
             return "Error: Could not load or validate data"
         
+        model_name = self._extract_model_name()
         summary = self.get_summary_statistics()
         per_question = self.get_per_question_stats()
         
         report = []
         report.append("=" * 80)
-        report.append("SQL AUTOGRADING STATISTICS REPORT")
+        report.append(f"SQL AUTOGRADING STATISTICS REPORT - {model_name}")
         report.append("=" * 80)
         report.append("")
         
@@ -239,7 +249,7 @@ class GradingStatistics:
         report.append(f"Total students: {summary['total_students']}")
         report.append(f"Valid comparisons: {summary['valid_students']}")
         report.append(f"Human average: {summary['human_avg']:.1f}±{summary['human_std']:.1f}")
-        report.append(f"LLM average: {summary['llm_avg']:.1f}±{summary['llm_std']:.1f}")
+        report.append(f"{model_name} average: {summary['llm_avg']:.1f}±{summary['llm_std']:.1f}")
         report.append(f"Average difference: {summary['avg_difference']:.1f}")
         report.append(f"Overall agreement: {summary['overall_agreement']:.1f}%")
         report.append("")
@@ -259,12 +269,12 @@ class GradingStatistics:
         for q_num, stats in per_question.items():
             report.append(f"QUESTION {q_num} (Out of 10)")
             report.append("-" * 80)
-            report.append(f"Average LLM score: {stats['llm_avg']:.1f}±{stats['llm_std']:.1f}")
+            report.append(f"Average {model_name} score: {stats['llm_avg']:.1f}±{stats['llm_std']:.1f}")
             report.append(f"Average Human score: {stats['human_avg']:.1f}±{stats['human_std']:.1f}")
             report.append(f"Average difference: {stats['avg_difference']:.1f}")
             report.append(f"Agreement rate: {stats['agreement_rate']:.1f}%")
-            report.append(f"LLM scored higher: {stats['llm_higher']} ({stats['llm_higher']/len(self.valid_df)*100:.1f}%)")
-            report.append(f"LLM scored lower: {stats['llm_lower']} ({stats['llm_lower']/len(self.valid_df)*100:.1f}%)")
+            report.append(f"{model_name} scored higher: {stats['llm_higher']} ({stats['llm_higher']/len(self.valid_df)*100:.1f}%)")
+            report.append(f"{model_name} scored lower: {stats['llm_lower']} ({stats['llm_lower']/len(self.valid_df)*100:.1f}%)")
             report.append("")
         
         return "\n".join(report)
@@ -279,11 +289,12 @@ class GradingStatistics:
         if not self.load_and_validate():
             return "Error: Could not load or validate data"
         
+        model_name = self._extract_model_name()
         grader_stats = self.get_per_grader_stats()
         
         report = []
         report.append("=" * 80)
-        report.append("PER-GRADER STATISTICS REPORT")
+        report.append(f"PER-GRADER STATISTICS REPORT - {model_name}")
         report.append("=" * 80)
         report.append("")
         report.append("Grader Assignments:")
@@ -300,7 +311,7 @@ class GradingStatistics:
         report.append("TOTAL SCORES (Out of 50)")
         report.append("=" * 80)
         report.append("")
-        report.append("Grader | #Students | Human: avg±std | LLM: avg±std   | Avg Diff")
+        report.append(f"Grader | #Students | Human: avg±std | {model_name}: avg±std   | Avg Diff")
         report.append("-" * 80)
         
         for grader in ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']:
@@ -325,7 +336,7 @@ class GradingStatistics:
             report.append(f"QUESTION {q} (Out of 10)")
             report.append("=" * 80)
             report.append("")
-            report.append("Grader |  N  | Human: avg±std | LLM: avg±std | Avg Diff | Agreement")
+            report.append(f"Grader |  N  | Human: avg±std | {model_name}: avg±std | Avg Diff | Agreement")
             report.append("-" * 80)
             
             for grader in ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']:
